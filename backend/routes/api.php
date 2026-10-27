@@ -42,6 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('staff', StaffController::class);
     Route::apiResource('faculties', FacultyController::class);
     Route::apiResource('clinic-visits', ClinicVisitController::class);
+    Route::post('/clinic-visits/{clinicVisit}/send-sms', [ClinicVisitController::class, 'sendSms']);
     Route::get('/nurses', [ClinicVisitController::class, 'nurses']);
     Route::apiResource('medicines', MedicineController::class);
     Route::post('/ai-chat', [AiChatbotController::class, 'chat']);

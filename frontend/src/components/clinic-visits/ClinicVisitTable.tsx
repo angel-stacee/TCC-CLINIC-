@@ -1,11 +1,11 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Pencil, Search, Stethoscope, Trash2, X } from "lucide-react";
+import { Pencil, Search, Stethoscope, Trash2, X, Phone, MessageSquare, AlertTriangle } from "lucide-react";
 
 export interface VisitRecord { id: number | string; visit_date?: string | null; reason?: string | null; [key: string]: any; }
 interface VisitPagination { current_page: number; last_page: number; total: number; per_page: number; }
-interface ClinicVisitTableProps { search: string; setSearch: (value: string) => void; loading: boolean; pageLoading: boolean; filteredVisits: VisitRecord[]; getPatientName: (visit: VisitRecord) => { name: string; id?: string; type?: string }; getNurseName: (nurse: any) => string; getMedicineName: (medicine: any) => string; getMedicineUnit: (medicine: any) => string; formatDate: (date: string | null | undefined) => string; handleEdit: (visit: VisitRecord) => void; deleteVisit: VisitRecord | null; setDeleteVisit: Dispatch<SetStateAction<VisitRecord | null>>; handleDelete: () => void; visitPagination: VisitPagination; fetchVisits: (page?: number, searchTerm?: string) => Promise<void>; }
+interface ClinicVisitTableProps { search: string; setSearch: (value: string) => void; loading: boolean; pageLoading: boolean; filteredVisits: VisitRecord[]; getPatientName: (visit: VisitRecord) => { name: string; id?: string; type?: string; contact_number?: string }; getNurseName: (nurse: any) => string; getMedicineName: (medicine: any) => string; getMedicineUnit: (medicine: any) => string; formatDate: (date: string | null | undefined) => string; handleEdit: (visit: VisitRecord) => void; deleteVisit: VisitRecord | null; setDeleteVisit: Dispatch<SetStateAction<VisitRecord | null>>; handleDelete: () => void; onSendSms?: (visit: VisitRecord) => void; visitPagination: VisitPagination; fetchVisits: (page?: number, searchTerm?: string) => Promise<void>; }
 
-export function ClinicVisitTable({ search, setSearch, loading, pageLoading, filteredVisits, getPatientName, getNurseName, getMedicineName, getMedicineUnit, formatDate, handleEdit, deleteVisit, setDeleteVisit, handleDelete, visitPagination, fetchVisits }: ClinicVisitTableProps) {
+export function ClinicVisitTable({ search, setSearch, loading, pageLoading, filteredVisits, getPatientName, getNurseName, getMedicineName, getMedicineUnit, formatDate, handleEdit, deleteVisit, setDeleteVisit, handleDelete, onSendSms, visitPagination, fetchVisits }: ClinicVisitTableProps) {
     return (
         <>
 
@@ -33,6 +33,10 @@ export function ClinicVisitTable({ search, setSearch, loading, pageLoading, filt
 
                                     <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-[#887d70]">
                                         Patient
+                                    </th>
+
+                                    <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-[#887d70]">
+                                        Cellphone / SMS
                                     </th>
 
                                     <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-[#887d70]">
@@ -75,7 +79,7 @@ export function ClinicVisitTable({ search, setSearch, loading, pageLoading, filt
                                 {pageLoading ? (
                                     <tr>
                                         <td
-                                            colSpan={9}
+                                            colSpan={10}
                                             className="px-5 py-12 text-center text-xs text-[#887d70]"
                                         >
                                             Loading clinic visits...
@@ -84,7 +88,7 @@ export function ClinicVisitTable({ search, setSearch, loading, pageLoading, filt
                                 ) : filteredVisits.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={9}
+                                            colSpan={10}
                                             className="px-5 py-12 text-center"
                                         >
                                             <Stethoscope
@@ -122,21 +126,45 @@ export function ClinicVisitTable({ search, setSearch, loading, pageLoading, filt
 
 
                                                     <td className="px-5 py-3.5">
-                                                        <p className="text-xs font-bold text-[#3c332a]">
-                                                            {
-                                                                patient.name
-                                                            }
-                                                        </p>
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <p className="text-xs font-bold text-[#3c332a]">
+                                                                {patient.name}
+                                                            </p>
+                                                            {visit.is_emergency ? (
+                                                                <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">
+                                                                    <AlertTriangle size={9} />
+                                                                    EMERGENCY
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
 
                                                         <p className="mt-0.5 text-[10px] text-[#887d70]">
-                                                            {
-                                                                patient.type
-                                                            }
-
-                                                            {patient.id
-                                                                ? ` • ${patient.id}`
-                                                                : ""}
+                                                            {patient.type}
+                                                            {patient.id ? ` • ${patient.id}` : ""}
                                                         </p>
+                                                    </td>
+
+                                                    <td className="px-5 py-3.5 text-xs">
+                                                        {patient.contact_number ? (
+                                                            <div>
+                                                                <p className="inline-flex items-center gap-1 font-medium text-[#3c332a]">
+                                                                    <Phone size={11} className="text-[#8a6f50]" />
+                                                                    {patient.contact_number}
+                                                                </p>
+                                                                {visit.sms_sent_at ? (
+                                                                    <p className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-emerald-600" title={`SMS sent at ${new Date(visit.sms_sent_at).toLocaleString()}`}>
+                                                                        <MessageSquare size={10} />
+                                                                        SMS Sent
+                                                                    </p>
+                                                                ) : (
+                                                                    <p className="mt-0.5 text-[10px] text-[#a99d8f]">
+                                                                        No SMS sent
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[#a99d8f]">-</span>
+                                                        )}
                                                     </td>
 
 
@@ -234,6 +262,15 @@ export function ClinicVisitTable({ search, setSearch, loading, pageLoading, filt
                                                     <td className="px-5 py-3.5">
 
                                                         <div className="flex justify-end gap-2">
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onSendSms && onSendSms(visit)}
+                                                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e8dfd4] text-[#70091f] transition hover:bg-[#fcebe7]"
+                                                                title={visit.sms_sent_at ? "Resend SMS notification" : "Send SMS notification"}
+                                                            >
+                                                                <MessageSquare size={14} />
+                                                            </button>
 
                                                             <button
                                                                 type="button"

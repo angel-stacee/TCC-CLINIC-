@@ -11,6 +11,9 @@ import {
     Pill,
     CalendarDays,
     CircleHelp,
+    Phone,
+    AlertTriangle,
+    MessageSquare,
 } from "lucide-react";
 import api from "../services/api";
 import { getCachedRecord } from "../services/recordCache";
@@ -24,6 +27,9 @@ const EMPTY_FORM = {
     faculty_id: "",
     staff_id: "",
     nurse_id: "",
+    contact_number: "",
+    is_emergency: false,
+    send_sms: true,
     visit_date: "",
     reason: "",
     symptoms: "",
@@ -308,12 +314,20 @@ function ClinicVisits() {
 
 
 
-    const getPatientName = (visit) => {
+    const getPatientName = (visit: any): { name: string; id: string; type: string; contact_number: string } => {
+        const contact =
+            visit.contact_number ||
+            visit.student?.contact_number ||
+            visit.faculty?.contact_number ||
+            visit.staff?.contact_number ||
+            "";
+
         if (visit.student) {
             return {
                 name: getFullName(visit.student),
                 id: visit.student.student_id || "",
                 type: "Student",
+                contact_number: contact,
             };
         }
 
@@ -322,6 +336,7 @@ function ClinicVisits() {
                 name: getFullName(visit.faculty),
                 id: visit.faculty.employee_id || "",
                 type: "Faculty",
+                contact_number: contact,
             };
         }
 
@@ -330,6 +345,7 @@ function ClinicVisits() {
                 name: getFullName(visit.staff),
                 id: visit.staff.staff_id || "",
                 type: "Staff",
+                contact_number: contact,
             };
         }
 
@@ -337,6 +353,7 @@ function ClinicVisits() {
             name: "Unknown Patient",
             id: "",
             type: "",
+            contact_number: contact,
         };
     };
 
@@ -348,6 +365,7 @@ function ClinicVisits() {
                 label: "Student",
                 identifier: student.student_id || "",
                 name: getFullName(student),
+                contact_number: student.contact_number || "",
             })),
 
             ...faculties.map((faculty) => ({
@@ -356,6 +374,7 @@ function ClinicVisits() {
                 label: "Faculty",
                 identifier: faculty.employee_id || "",
                 name: getFullName(faculty),
+                contact_number: faculty.contact_number || "",
             })),
 
             ...staff.map((person) => ({
@@ -364,6 +383,7 @@ function ClinicVisits() {
                 label: "Staff",
                 identifier: person.staff_id || "",
                 name: getFullName(person),
+                contact_number: person.contact_number || "",
             })),
         ];
     }, [students, faculties, staff]);
@@ -397,20 +417,24 @@ function ClinicVisits() {
         setFormData((previous) => ({
             ...previous,
 
+            contact_number: patient.contact_number || previous.contact_number || "",
             student_id:
                 patient.type === "student"
                     ? patient.id
                     : "",
+
 
             faculty_id:
                 patient.type === "faculty"
                     ? patient.id
                     : "",
 
+
             staff_id:
                 patient.type === "staff"
                     ? patient.id
                     : "",
+
         }));
 
         setPatientSearch(
@@ -810,13 +834,21 @@ function ClinicVisits() {
     const handleEdit = (visit) => {
         setEditingVisit(visit);
 
-        const treatment =
-            visit.treatment || "";
+        const treatment = visit.treatment || "";
+        const contact =
+            visit.contact_number ||
+            visit.student?.contact_number ||
+            visit.faculty?.contact_number ||
+            visit.staff?.contact_number ||
+            "";
 
         setFormData({
             student_id: visit.student_id || "",
             faculty_id: visit.faculty_id || "",
             staff_id: visit.staff_id || "",
+            contact_number: contact,
+            is_emergency: Boolean(visit.is_emergency),
+            send_sms: true,
 
             nurse_id:
                 visit.nurse_id ||
@@ -1060,6 +1092,15 @@ function ClinicVisits() {
             nurse_id:
                 formData.nurse_id || null,
 
+            contact_number:
+                formData.contact_number?.trim() || null,
+
+            is_emergency:
+                Boolean(formData.is_emergency),
+
+            send_sms:
+                Boolean(formData.send_sms !== false),
+
             visit_date:
                 formData.visit_date,
 
@@ -1291,6 +1332,34 @@ function ClinicVisits() {
 
 
 
+
+    const handleSendSms = async (visit: VisitRecord) => {
+        const patient = getPatientName(visit);
+        const recipient = patient.contact_number || visit.contact_number;
+
+        if (!recipient) {
+            alert("No cellphone number registered for this visit.");
+            return;
+        }
+
+        const isEmergency = Boolean(visit.is_emergency);
+        const confirmMsg = `Send SMS notification to ${patient.name} (${recipient})?\n\nTemplate:\nTCC CLINIC\nDATE: ${formatDate(visit.visit_date)}\nGreetings!\n${isEmergency ? '[EMERGENCY MEDICAL ADVISORY]' : 'Clinic Visit Notice'}`;
+
+        if (!window.confirm(confirmMsg)) {
+            return;
+        }
+
+        try {
+            const response = await api.post(`/clinic-visits/${visit.id}/send-sms`, {
+                is_emergency: isEmergency,
+            });
+            setToastMessage(response.data?.message || "SMS notification dispatched successfully.");
+            await fetchVisits(visitPagination.current_page, search);
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.message || "Failed to dispatch SMS.";
+            alert(errorMsg);
+        }
+    };
 
     return (
         <div className="tcc-module-page min-h-screen px-5 py-5 lg:px-6 lg:py-6">
@@ -1649,7 +1718,7 @@ function ClinicVisits() {
                     )}
                 </div>
 
-                <ClinicVisitTable search={search} setSearch={setSearch} loading={loading} pageLoading={pageLoading} filteredVisits={filteredVisits} getPatientName={getPatientName} getNurseName={getNurseName} getMedicineName={getMedicineName} getMedicineUnit={getMedicineUnit} formatDate={formatDate} handleEdit={handleEdit} deleteVisit={deleteVisit} setDeleteVisit={setDeleteVisit} handleDelete={handleDelete} visitPagination={visitPagination} fetchVisits={fetchVisits} />
+                <ClinicVisitTable search={search} setSearch={setSearch} loading={loading} pageLoading={pageLoading} filteredVisits={filteredVisits} getPatientName={getPatientName} getNurseName={getNurseName} getMedicineName={getMedicineName} getMedicineUnit={getMedicineUnit} formatDate={formatDate} handleEdit={handleEdit} deleteVisit={deleteVisit} setDeleteVisit={setDeleteVisit} handleDelete={handleDelete} visitPagination={visitPagination} fetchVisits={fetchVisits} onSendSms={handleSendSms} />
 
                 {showAddConfirmation && (
                     <div

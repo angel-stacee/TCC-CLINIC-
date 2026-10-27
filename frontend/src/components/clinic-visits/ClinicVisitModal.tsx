@@ -1,5 +1,5 @@
 import type { FormEventHandler } from "react";
-import { Pill, Search, X } from "lucide-react";
+import { Pill, Search, X, Phone, AlertTriangle, MessageSquare } from "lucide-react";
 import type { VisitRecord } from "./ClinicVisitTable";
 
 interface PatientOption {
@@ -8,6 +8,7 @@ interface PatientOption {
     label: string;
     identifier: string;
     name: string;
+    contact_number?: string;
 }
 
 interface ClinicVisitModalProps {
@@ -217,7 +218,75 @@ export function ClinicVisitModal({
                             )}
                         </div>
 
-                        {/* 2. Nurse on Duty (Right) */}
+                        {/* Cellphone Number (Right) */}
+                        <div className="flex flex-col gap-1">
+                            <label className="flex items-center gap-1.5 text-sm font-medium text-stone-700 dark:text-stone-300">
+                                <Phone size={14} className="text-stone-400" />
+                                Cellphone Number
+                                <span className="ml-1 text-red-500">*</span>
+                            </label>
+
+                            <input
+                                type="tel"
+                                name="contact_number"
+                                value={formData.contact_number || ""}
+                                onChange={handleChange}
+                                placeholder="e.g. 09123456789"
+                                required
+                                className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                            />
+                        </div>
+
+                        {/* SMS & Emergency Options (Full width across md:col-span-2) */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-stone-800 dark:bg-stone-800/40 md:col-span-2">
+                            <div className="flex flex-wrap items-center gap-4 text-xs">
+                                <label className="inline-flex cursor-pointer items-center gap-2 font-medium text-stone-700 dark:text-stone-300">
+                                    <input
+                                        type="checkbox"
+                                        name="send_sms"
+                                        checked={formData.send_sms !== false}
+                                        onChange={(e) =>
+                                            setFormData((prev: any) => ({
+                                                ...prev,
+                                                send_sms: e.target.checked,
+                                            }))
+                                        }
+                                        className="h-4 w-4 rounded border-stone-300 text-[#70091f] focus:ring-[#70091f]"
+                                    />
+                                    <span className="flex items-center gap-1.5">
+                                        <MessageSquare size={14} className="text-[#70091f]" />
+                                        Send SMS Notification to Student/Guardian
+                                    </span>
+                                </label>
+
+                                <label className="inline-flex cursor-pointer items-center gap-2 font-bold text-red-600 dark:text-red-400">
+                                    <input
+                                        type="checkbox"
+                                        name="is_emergency"
+                                        checked={Boolean(formData.is_emergency)}
+                                        onChange={(e) =>
+                                            setFormData((prev: any) => ({
+                                                ...prev,
+                                                is_emergency: e.target.checked,
+                                            }))
+                                        }
+                                        className="h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
+                                    />
+                                    <span className="flex items-center gap-1">
+                                        <AlertTriangle size={14} />
+                                        Mark as Emergency Case
+                                    </span>
+                                </label>
+                            </div>
+
+                            {formData.is_emergency && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700 dark:bg-red-950/60 dark:text-red-400">
+                                    🚨 Emergency SMS Alert Active
+                                </span>
+                            )}
+                        </div>
+
+                        {/* 2. Nurse on Duty (Left) */}
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
                                 Nurse on Duty
@@ -373,8 +442,8 @@ export function ClinicVisitModal({
                             </select>
                         </div>
 
-                        {/* 10. Medicine / Supply (Right) */}
-                        <div className="relative flex flex-col gap-1">
+                        {/* 10. Medicine / Supply (Full width) */}
+                        <div className="relative flex flex-col gap-1 md:col-span-2">
                             <div className="flex items-center justify-between">
                                 <label className="flex items-center gap-1.5 text-sm font-medium text-stone-700 dark:text-stone-300">
                                     <Pill size={15} />

@@ -8,6 +8,7 @@ use App\Models\Medicine;
 use App\Models\Staff;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\SmsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,10 @@ class ClinicVisitController extends Controller
                 'faculty_id',
                 'staff_id',
                 'nurse_id',
+                'contact_number',
+                'is_emergency',
+                'sms_sent_at',
+                'sms_status',
                 'medicine_id',
                 'medicine_quantity',
                 'visit_date',
@@ -48,9 +53,9 @@ class ClinicVisitController extends Controller
                 'updated_at',
             ])
             ->with([
-                'student:id,student_id,first_name,middle_name,last_name',
-                'faculty:id,employee_id,first_name,middle_name,last_name',
-                'staff:id,staff_id,first_name,middle_name,last_name',
+                'student:id,student_id,first_name,middle_name,last_name,contact_number',
+                'faculty:id,employee_id,first_name,middle_name,last_name,contact_number',
+                'staff:id,staff_id,first_name,middle_name,last_name,contact_number',
                 'nurse:id,name,email,role',
                 'medicine:id,medicine_name,unit',
             ])
@@ -74,6 +79,7 @@ class ClinicVisitController extends Controller
                         ->orWhere('treatment', 'like', $contains)
                         ->orWhere('remarks', 'like', $contains)
                         ->orWhere('visit_date', 'like', $contains)
+                        ->orWhere('contact_number', 'like', $contains)
                         ->when($dateSearch, fn (Builder $dateQuery, string $date) => $dateQuery->orWhereDate('visit_date', $date))
                         ->orWhereRaw('CAST(medicine_quantity AS CHAR) LIKE ?', [$contains])
                         ->orWhereHas('student', function (Builder $studentQuery) use ($contains, $tokens) {
@@ -81,7 +87,8 @@ class ClinicVisitController extends Controller
                                 $sq->where('student_id', 'like', $contains)
                                     ->orWhere('first_name', 'like', $contains)
                                     ->orWhere('middle_name', 'like', $contains)
-                                    ->orWhere('last_name', 'like', $contains);
+                                    ->orWhere('last_name', 'like', $contains)
+                                    ->orWhere('contact_number', 'like', $contains);
 
                                 if (count($tokens) > 1) {
                                     $sq->orWhere(function (Builder $tq) use ($tokens) {
@@ -103,7 +110,8 @@ class ClinicVisitController extends Controller
                                 $fq->where('employee_id', 'like', $contains)
                                     ->orWhere('first_name', 'like', $contains)
                                     ->orWhere('middle_name', 'like', $contains)
-                                    ->orWhere('last_name', 'like', $contains);
+                                    ->orWhere('last_name', 'like', $contains)
+                                    ->orWhere('contact_number', 'like', $contains);
 
                                 if (count($tokens) > 1) {
                                     $fq->orWhere(function (Builder $tq) use ($tokens) {
@@ -113,7 +121,8 @@ class ClinicVisitController extends Controller
                                                 $fieldQuery->where('employee_id', 'like', $tokenContains)
                                                     ->orWhere('first_name', 'like', $tokenContains)
                                                     ->orWhere('middle_name', 'like', $tokenContains)
-                                                    ->orWhere('last_name', 'like', $tokenContains);
+                                                    ->orWhere('last_name', 'like', $tokenContains)
+                                                    ->orWhere('contact_number', 'like', $tokenContains);
                                             });
                                         }
                                     });
@@ -125,7 +134,8 @@ class ClinicVisitController extends Controller
                                 $sq->where('staff_id', 'like', $contains)
                                     ->orWhere('first_name', 'like', $contains)
                                     ->orWhere('middle_name', 'like', $contains)
-                                    ->orWhere('last_name', 'like', $contains);
+                                    ->orWhere('last_name', 'like', $contains)
+                                    ->orWhere('contact_number', 'like', $contains);
 
                                 if (count($tokens) > 1) {
                                     $sq->orWhere(function (Builder $tq) use ($tokens) {
@@ -135,7 +145,8 @@ class ClinicVisitController extends Controller
                                                 $fieldQuery->where('staff_id', 'like', $tokenContains)
                                                     ->orWhere('first_name', 'like', $tokenContains)
                                                     ->orWhere('middle_name', 'like', $tokenContains)
-                                                    ->orWhere('last_name', 'like', $tokenContains);
+                                                    ->orWhere('last_name', 'like', $tokenContains)
+                                                    ->orWhere('contact_number', 'like', $tokenContains);
                                             });
                                         }
                                     });
@@ -156,6 +167,25 @@ class ClinicVisitController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->filled('cellphone_number') && ! $request->filled('contact_number')) {
+            $request->merge(['contact_number' => $request->input('cellphone_number')]);
+        }
+
+        if (! $request->filled('contact_number')) {
+            $patientContact = null;
+            if ($request->filled('student_id')) {
+                $patientContact = Student::where('id', $request->input('student_id'))->value('contact_number');
+            } elseif ($request->filled('faculty_id')) {
+                $patientContact = Faculty::where('id', $request->input('faculty_id'))->value('contact_number');
+            } elseif ($request->filled('staff_id')) {
+                $patientContact = Staff::where('id', $request->input('staff_id'))->value('contact_number');
+            }
+
+            if (! empty($patientContact)) {
+                $request->merge(['contact_number' => $patientContact]);
+            }
+        }
+
         $validated = $request->validate([
             'student_id' => [
                 'nullable',
@@ -175,6 +205,18 @@ class ClinicVisitController extends Controller
             'nurse_id' => [
                 'required',
                 'exists:users,id',
+            ],
+
+            'contact_number' => [
+                'required',
+                'string',
+                'max:50',
+            ],
+
+            'cellphone_number' => [
+                'nullable',
+                'string',
+                'max:50',
             ],
 
             'visit_date' => [
@@ -230,6 +272,18 @@ class ClinicVisitController extends Controller
                 'nullable',
                 'string',
             ],
+
+            'is_emergency' => [
+                'nullable',
+                'boolean',
+            ],
+
+            'send_sms' => [
+                'nullable',
+                'boolean',
+            ],
+        ], [
+            'contact_number.required' => 'The cellphone number is required.',
         ]);
 
         $patientIds = [
@@ -256,6 +310,11 @@ class ClinicVisitController extends Controller
                     'Please select only one patient.',
                 ],
             ]);
+        }
+
+        if (array_key_exists('cellphone_number', $validated)) {
+            $validated['contact_number'] = $validated['contact_number'] ?? $validated['cellphone_number'];
+            unset($validated['cellphone_number']);
         }
 
         $validated = $this->normalizeMedicineData($validated);
@@ -302,8 +361,22 @@ class ClinicVisitController extends Controller
             return ClinicVisit::create($validated);
         });
 
+        $shouldSendSms = $request->has('send_sms')
+            ? $request->boolean('send_sms')
+            : true;
+
+        $isEmergency = $request->boolean('is_emergency');
+
+        if ($shouldSendSms && ! empty($visit->contact_number)) {
+            try {
+                app(SmsService::class)->sendVisitNotification($visit, $isEmergency);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Clinic visit SMS dispatch error: '.$e->getMessage());
+            }
+        }
+
         return response()->json(
-            $visit->load([
+            $visit->fresh()->load([
                 'student',
                 'faculty',
                 'staff',
@@ -331,6 +404,31 @@ class ClinicVisitController extends Controller
         Request $request,
         ClinicVisit $clinicVisit
     ) {
+        if ($request->filled('cellphone_number') && ! $request->filled('contact_number')) {
+            $request->merge(['contact_number' => $request->input('cellphone_number')]);
+        }
+
+        if (! $request->filled('contact_number')) {
+            $patientContact = $clinicVisit->contact_number;
+            $studentId = $request->input('student_id', $clinicVisit->student_id);
+            $facultyId = $request->input('faculty_id', $clinicVisit->faculty_id);
+            $staffId = $request->input('staff_id', $clinicVisit->staff_id);
+
+            if (empty($patientContact)) {
+                if (! empty($studentId)) {
+                    $patientContact = Student::where('id', $studentId)->value('contact_number');
+                } elseif (! empty($facultyId)) {
+                    $patientContact = Faculty::where('id', $facultyId)->value('contact_number');
+                } elseif (! empty($staffId)) {
+                    $patientContact = Staff::where('id', $staffId)->value('contact_number');
+                }
+            }
+
+            if (! empty($patientContact)) {
+                $request->merge(['contact_number' => $patientContact]);
+            }
+        }
+
         $validated = $request->validate([
             'student_id' => [
                 'nullable',
@@ -350,6 +448,18 @@ class ClinicVisitController extends Controller
             'nurse_id' => [
                 'required',
                 'exists:users,id',
+            ],
+
+            'contact_number' => [
+                'required',
+                'string',
+                'max:50',
+            ],
+
+            'cellphone_number' => [
+                'nullable',
+                'string',
+                'max:50',
             ],
 
             'visit_date' => [
@@ -405,6 +515,18 @@ class ClinicVisitController extends Controller
                 'nullable',
                 'string',
             ],
+
+            'is_emergency' => [
+                'nullable',
+                'boolean',
+            ],
+
+            'send_sms' => [
+                'nullable',
+                'boolean',
+            ],
+        ], [
+            'contact_number.required' => 'The cellphone number is required.',
         ]);
 
         $patientIds = [
@@ -431,6 +553,11 @@ class ClinicVisitController extends Controller
                     'Please select only one patient.',
                 ],
             ]);
+        }
+
+        if (array_key_exists('cellphone_number', $validated)) {
+            $validated['contact_number'] = $validated['contact_number'] ?? $validated['cellphone_number'];
+            unset($validated['cellphone_number']);
         }
 
         $validated = $this->normalizeMedicineData($validated);
@@ -545,6 +672,22 @@ class ClinicVisitController extends Controller
                 $validated
             );
         });
+
+        $shouldSendSms = $request->has('send_sms')
+            ? $request->boolean('send_sms')
+            : true;
+
+        $isEmergency = $request->has('is_emergency')
+            ? $request->boolean('is_emergency')
+            : (bool) $clinicVisit->is_emergency;
+
+        if ($shouldSendSms && ! empty($clinicVisit->contact_number)) {
+            try {
+                app(SmsService::class)->sendVisitNotification($clinicVisit->fresh(), $isEmergency);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Clinic visit SMS dispatch error on update: '.$e->getMessage());
+            }
+        }
 
         return response()->json(
             $clinicVisit
@@ -704,7 +847,7 @@ class ClinicVisitController extends Controller
 
         if (! $request->has('medicine_search')) {
             $payload['students'] = Student::query()
-                ->select(['id', 'student_id', 'first_name', 'middle_name', 'last_name'])
+                ->select(['id', 'student_id', 'first_name', 'middle_name', 'last_name', 'contact_number'])
                 ->when($patientSearch !== '', function (Builder $query) use ($patientSearch, $patientTokens) {
                     $contains = '%'.$patientSearch.'%';
                     $query->where(function (Builder $subQuery) use ($contains, $patientTokens) {
@@ -734,7 +877,7 @@ class ClinicVisitController extends Controller
                 ->get();
 
             $payload['staff'] = Staff::query()
-                ->select(['id', 'staff_id', 'first_name', 'middle_name', 'last_name'])
+                ->select(['id', 'staff_id', 'first_name', 'middle_name', 'last_name', 'contact_number'])
                 ->when($patientSearch !== '', function (Builder $query) use ($patientSearch, $patientTokens) {
                     $contains = '%'.$patientSearch.'%';
                     $query->where(function (Builder $subQuery) use ($contains, $patientTokens) {
@@ -764,7 +907,7 @@ class ClinicVisitController extends Controller
                 ->get();
 
             $payload['faculties'] = Faculty::query()
-                ->select(['id', 'employee_id', 'first_name', 'middle_name', 'last_name'])
+                ->select(['id', 'employee_id', 'first_name', 'middle_name', 'last_name', 'contact_number'])
                 ->when($patientSearch !== '', function (Builder $query) use ($patientSearch, $patientTokens) {
                     $contains = '%'.$patientSearch.'%';
                     $query->where(function (Builder $subQuery) use ($contains, $patientTokens) {
@@ -816,5 +959,39 @@ class ClinicVisitController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    public function sendSms(Request $request, ClinicVisit $clinicVisit, SmsService $smsService)
+    {
+        $validated = $request->validate([
+            'contact_number' => ['nullable', 'string', 'max:50'],
+            'is_emergency' => ['nullable', 'boolean'],
+        ]);
+
+        $isEmergency = $request->has('is_emergency')
+            ? $request->boolean('is_emergency')
+            : (bool) $clinicVisit->is_emergency;
+
+        $recipient = $validated['contact_number'] ?? $clinicVisit->contact_number;
+
+        if (empty($recipient)) {
+            return response()->json([
+                'message' => 'No cellphone number available for this clinic visit.',
+            ], 422);
+        }
+
+        $result = $smsService->sendVisitNotification($clinicVisit, $isEmergency, $recipient);
+
+        return response()->json([
+            'message' => $result['message'],
+            'result' => $result,
+            'visit' => $clinicVisit->fresh()->load([
+                'student',
+                'faculty',
+                'staff',
+                'nurse',
+                'medicine',
+            ]),
+        ]);
     }
 }
