@@ -3,8 +3,10 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "dev": "vite"
+        "build": "npm run build --prefix frontend",
+        "frontend:build": "npm run build --prefix frontend",
+        "frontend:dev": "npm run dev --prefix frontend",
+        "dev": "npx concurrently -c \"#93c5fd,#fb7185\" \"php artisan serve\" \"npm run dev --prefix frontend\" --names=laravel,vite"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

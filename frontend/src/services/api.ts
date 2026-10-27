@@ -13,11 +13,8 @@ export const getApiOrigin = (): string => {
         }
     }
 
-    if (typeof window !== "undefined" && window.location?.hostname) {
-        const host = window.location.hostname;
-        if (host !== "localhost" && host !== "127.0.0.1") {
-            return `http://${host}:8000`;
-        }
+    if (typeof window !== "undefined" && window.location?.origin) {
+        return window.location.origin;
     }
 
     return "http://127.0.0.1:8000";

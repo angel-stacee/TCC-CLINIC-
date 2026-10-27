@@ -49,23 +49,29 @@ Set-Location frontend
 npm ci
 ```
 
-## Run the app locally
+## Run the app on a single domain (Frontend + Backend together)
 
-Keep both terminals running.
-
-**Terminal 1 - Laravel API** (from the `backend` directory):
+Now that backend and frontend are combined into 1 folder, you only need to run:
 
 ```powershell
-php artisan serve --host=127.0.0.1 --port=8000
+php artisan serve --port=8000
 ```
 
-**Terminal 2 - React frontend** (from the `frontend` directory):
+Open your browser at **<http://localhost:8000>**.
+- Both the React frontend UI and the Laravel API are served together on the **SAME domain**.
+- No need to run Vite separately on port 5173.
 
+### Rebuilding Frontend Assets (When you make UI changes)
+
+From the project root:
+```powershell
+npm run build
+```
+
+### Optional: Hot Reload Development Mode
 ```powershell
 npm run dev
 ```
-
-Open the frontend URL printed by Vite, usually <http://localhost:5173>. The frontend sends API requests to <http://127.0.0.1:8000/api>.
 
 ## Useful commands
 
